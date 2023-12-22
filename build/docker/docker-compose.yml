@@ -12,11 +12,15 @@ services:
     hostname: devsbc
     container_name: libresbc
     restart: always
-    image: hnimminh/libresbc:latest
+    image: r.world-direct.at/uc-hcs1/ccs/libresbc
     volumes:
       - ./liberator:/opt/libresbc/liberator
       - ./callng:/opt/libresbc/callng
-    network_mode: host
+    # network_mode: host
+    ports:
+      - 5060:5060/udp
+      - 5060:5060/tcp
+      - 16384-32767:16384-32767/udp
     cap_add:
       - NET_ADMIN
       - SYS_NICE
@@ -30,3 +34,23 @@ services:
       - libre.env
     environment:
       SBC_VERSION: 0.7.0
+
+  nginx:
+    image: r.world-direct.at/dockerhub/library/nginx
+    restart: always
+    volumes:
+      - ./build/docker/nginx/nginx.conf /etc/nginx/nginx.conf
+      - ./build/docker/nginx/libre.apigw.conf /etc/nginx/libre.apigw.conf
+      - ./build/docker/nginx/mime.types /etc/nginx/mime.types
+      - ./third-party/nginx/selfsignedssl /etc/nginx/selfsignedssl
+    ports:
+      - "8443:8443"
+
+  redis:
+    container_name: "redis"
+    image: redis:6.0.20
+    volumes:
+      - /local-data/:/data/
+    restart: always
+    ports:
+      - 16379:6379
