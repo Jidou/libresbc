@@ -1,0 +1,92 @@
+FROM r.world-direct.at/dockerhub/library/rockylinux:9.2
+LABEL maintainer="Minh Minh <hnimminh@outlook.com>"
+ENV LIBRE_CONTAINERIZED 1
+ENV LIBRE_BUILTIN_FIREWALL 0
+ENV LIBRE_REDIS 0
+
+RUN dnf -y install \
+    dnf-plugins-core \
+    epel-release
+
+# BASE SOFTWARE
+# base
+RUN dnf -y install \
+    git wget lsof vim redis procps tcpdump net-tools rsyslog logrotate rsync nftables diffutils chrony
+# build
+RUN dnf -y install \
+    gcc gcc-c++ cmake automake libtool libatomic gnupg2 autoconf
+# general
+RUN dnf --enablerepo=crb -y install \
+    openssl-libs zlib-devel libdb-devel unixODBC-devel ncurses-devel expat-devel gdbm-devel libcurl-devel bison libtiff-devel libjpeg-turbo-devel libuuid-devel uuid-devel
+# core
+RUN dnf --enablerepo=crb -y install \
+    pcre-devel libedit-devel libsqlite3x-devel openssl-devel nasm
+# codecs
+RUN dnf --enablerepo=crb -y install \
+    libogg-devel speex-devel speexdsp-devel opus-devel opencore-amr-devel vo-amrwbenc-devel opencore-amr-devel
+# languages
+RUN dnf --enablerepo=crb -y install \
+    python3 python3-devel python3-pip lua-devel lua luarocks
+# mods
+RUN dnf --enablerepo=crb -y install \
+    libavformat-free-devel libswscale-free-devel libsndfile-devel flac-devel libogg-devel libvorbis-devel flite-devel
+# kams
+RUN dnf --enablerepo=crb -y install \
+    flex gdb libxml2-devel libunistring-devel hiredis-devel
+
+# API
+RUN dnf -y install \
+    nginx
+
+RUN mkdir -p /run/redis /opt/libresbc /var/log/libresbc/cdr
+COPY callng /opt/libresbc/callng
+COPY liberator /opt/libresbc/liberator
+COPY build/ansible/roles/platform/files/modules.conf /opt/libresbc/modules.conf
+
+# FREESWITCH
+RUN git clone https://github.com/signalwire/libks /usr/src/libs/libks && \
+    git clone --branch v1.13.15 https://github.com/freeswitch/sofia-sip.git /usr/src/libs/sofia-sip && \
+    git clone https://github.com/freeswitch/spandsp /usr/src/libs/spandsp && \
+    git clone https://github.com/signalwire/signalwire-c /usr/src/libs/signalwire-c && \
+    git clone --branch v1.10.10 https://github.com/signalwire/freeswitch.git /usr/src/freeswitch && \
+    cp /usr/include/opencore-amrwb/dec_if.h /usr/src/freeswitch/src/mod/codecs/mod_amrwb/dec_if.h && \
+    cp /usr/include/vo-amrwbenc/enc_if.h /usr/src/freeswitch/src/mod/codecs/mod_amrwb/enc_if.h && \
+    cp /usr/include/opencore-amrnb/interf_enc.h /usr/src/freeswitch/src/mod/codecs/mod_amr/interf_enc.h && \
+    cp /usr/include/opencore-amrnb/interf_dec.h /usr/src/freeswitch/src/mod/codecs/mod_amr/interf_dec.h
+
+RUN cd /usr/src/libs/libks && cmake . -DCMAKE_INSTALL_PREFIX=/usr -DWITH_LIBBACKTRACE=0 && make install && \
+    cd /usr/src/libs/sofia-sip && ./bootstrap.sh && ./configure CFLAGS="-g -ggdb" --with-pic --with-glib=no --without-doxygen --disable-stun --prefix=/usr && make -j`nproc --all` && make install && \
+    cd /usr/src/libs/spandsp && git checkout 0d2e6ac && ./bootstrap.sh && ./configure CFLAGS="-g -ggdb" --with-pic --prefix=/usr && make -j`nproc --all` && make install && \
+    cd /usr/src/libs/signalwire-c && PKG_CONFIG_PATH=/usr/lib/pkgconfig cmake . -DCMAKE_INSTALL_PREFIX=/usr && make install && \
+    cd /usr/src/freeswitch && cp /opt/libresbc/modules.conf /usr/src/freeswitch/modules.conf && \
+    ./bootstrap.sh -j && ./configure -C --prefix=/usr/local --with-rundir=/run/freeswitch --with-logfiledir=/var/log/freeswitch/ --enable-64 --with-openssl && make -j`nproc` && make install
+
+RUN git clone https://github.com/hnimminh/mod_bcg729.git /usr/local/src/mod_bcg729 && cd /usr/local/src/mod_bcg729 && make && make install
+
+# KAMAILIO
+RUN curl https://www.kamailio.org/pub/kamailio/5.7.1/src/kamailio-5.7.1_src.tar.gz -o /usr/local/src/kamailio-5.7.1_src.tar.gz && \
+    tar -xzvf /usr/local/src/kamailio-5.7.1_src.tar.gz -C /usr/local/src && cd /usr/local/src/kamailio-5.7.1 && \
+    make cfg && make include_modules="jsonrpcs ctl kex corex tm tmx outbound sl rr pv maxfwd topoh dialog usrloc registrar textops textopsx siputils sanity uac kemix auth nathelper tls debugger htable pike xlog app_lua regex utils" cfg && \
+    make all && make install
+
+RUN chmod +x /opt/libresbc/callng/requirement.sh && /opt/libresbc/callng/requirement.sh &&\
+    pip3 install -r /opt/libresbc/liberator/requirements.txt
+
+# LAYOUT & CLEANUP
+RUN rm -rf /usr/src/freeswitch-1.10.9.tar.gz /usr/local/freeswitch/conf/* /usr/local/src/kamailio*
+
+# RUN rm -rf /etc/nginx/*
+# ADD third-party/nginx/* /etc/nginx/
+
+RUN mkdir -p /usr/share/lua/5.4/callng/
+COPY callng /usr/share/lua/5.4/callng/
+RUN mkdir -p /usr/local/share/freeswitch/scripts/callng
+COPY callng /usr/local/share/freeswitch/scripts/callng
+ADD build/docker/startup.sh /opt/libresbc/liberator/startup.sh
+RUN chmod +x /opt/libresbc/liberator/startup.sh
+WORKDIR /opt/libresbc/liberator
+ENTRYPOINT [ "./startup.sh" ]
+# CMD ["/usr/bin/python3", "/opt/libresbc/liberator/main.py"]
+
+# docker build --platform linux/amd64 -t r.world-direct.at/uc-hcs1/ccs/libresbc -f build/docker/Dockerfile.rockylinux .
+# docker run --env-file ../libre.env --cap-add NET_ADMIN --cap-add SYS_NICE --network host --name libresbc hnimminh/libresbc:latest
