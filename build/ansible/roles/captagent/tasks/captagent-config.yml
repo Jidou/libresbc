@@ -33,6 +33,16 @@
     - src: "{{dstdir}}/third-party/captagent"
       dest: /usr/local/captagent/etc/captagent
 
+- name: Symbolic link for captagent service
+  file:
+    src: "{{item.src}}"
+    dest: "{{item.dest}}"
+    force: true
+    state: link
+  with_items:
+    - src: "{{dstdir}}/third-party/captagent/system/systemd/captagent.service"
+      dest: /etc/systemd/system/captagent.service
+
 - name: handle restart captagent daemon
   debug:
     msg: "captagent will be restarted"
