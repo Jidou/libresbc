@@ -1,4 +1,20 @@
 ---
+- name: Create `www-data` Group
+  group:
+    name: www-data
+    state: present
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
+
+- name: Add user `www-data`
+  user:
+    name: www-data
+    shell: /bin/false
+    groups: nginx
+    group: www
+    system : true
+    home : /usr/share/nginx/html/www
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
+
 - name: Create directory {{dstdir}}/third-party/nginx in target host
   file:
     path: "{{dstdir}}/third-party/nginx"
