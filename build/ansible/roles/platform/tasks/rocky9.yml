@@ -1,38 +1,38 @@
-- name: Disable SELinux
-  selinux:
-    state: disabled
-  ignore_errors: true
+# - name: Disable SELinux
+#   selinux:
+#     state: disabled
+#   ignore_errors: true
 
-- name: Update apt-cache
-  apt:
+- name: Update dnf-cache
+  dnf:
     update_cache: yes
 
 - name: Update all packages to their latest version
-  apt:
+  dnf:
     name: "*"
     state: latest
 
-- name: Upgrade the OS (apt-get dist-upgrade)
-  apt:
-    upgrade: dist
+# - name: Upgrade the OS (apt-get dist-upgrade)
+#   dnf:
+#     upgrade: dist
 
 # set timezone
 - name: Set timezone to {{timezone|default(UTC)}}
   timezone:
     name: "{{timezone|default(UTC)}}"
 
-# change hostname
-- name: Change hostname {{ansible_hostname}} to {{nodeid|lower}}
-  hostname:
-    name: "{{nodeid | lower}}"
+# # change hostname
+# - name: Change hostname {{ansible_hostname}} to {{nodeid|lower}}
+#   hostname:
+#     name: "{{nodeid | lower}}"
 
-# https://github.com/ansible/ansible/issues/19176
-- name: set hostname - workaround
-  replace:
-    path: /etc/hosts
-    regexp: ^127.0.1.1(.*){{ansible_hostname}}(.*)$
-    replace: 127.0.1.1\1{{nodeid|lower}}\2
-    backup: yes
+# # https://github.com/ansible/ansible/issues/19176
+# - name: set hostname - workaround
+#   replace:
+#     path: /etc/hosts
+#     regexp: ^127.0.1.1(.*){{ansible_hostname}}(.*)$
+#     replace: 127.0.1.1\1{{nodeid|lower}}\2
+#     backup: yes
 
 - name: Remove unused packages
   dnf:
@@ -49,7 +49,6 @@
       - wget
       - lsof
       - vim
-      - redis
       - procps
       - tcpdump
       - net-tools
@@ -122,12 +121,8 @@
     no_block: false
   ignore_errors: true
 
-- name: Remove useless packages from the cache
-  apt:
-    autoclean: yes
-
 - name: Remove dependencies that are no longer required
-  apt:
+  dnf:
     autoremove: yes
 
 - name: make source directory writeable
@@ -135,9 +130,3 @@
     path: /usr/local/src
     state: directory
     mode: 0764
-
-- name: build change default editor
-  shell: update-alternatives --set editor /usr/bin/vim.basic
-  args:
-    executable: /bin/bash
-  ignore_errors: true

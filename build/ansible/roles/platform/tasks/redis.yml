@@ -2,12 +2,28 @@
   apt:
     update_cache: yes
   ignore_errors: yes
+  when: ansible_os_family == "Debian"
 
-- name: Install Extra Redis packages
+
+- name: Run the equivalent of "dnf update" as a separate step
+  dnf:
+    update_cache: yes
+  ignore_errors: yes
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
+
+- name: Install Extra Redis packages, Debian
   apt:
     pkg:
       - redis-server
     state: latest
+  when: ansible_os_family == "Debian"
+
+- name: Install Extra Redis packages, Rocky
+  dnf:
+    pkg:
+      - redis
+    state: latest
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
 
 - name: restart redis
   systemd:

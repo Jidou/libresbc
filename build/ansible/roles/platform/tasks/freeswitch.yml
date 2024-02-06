@@ -5,6 +5,7 @@
     username: libresbc
     password: '{{ signalwire_pat_token }}'
     dest: /usr/share/keyrings/signalwire-freeswitch-repo.gpg
+  when: ansible_os_family == "Debian"
 
 - name: Create APT Auth for FreeSWITCH
   copy:
@@ -13,6 +14,29 @@
     group: root
     mode: '0700'
     content: 'machine freeswitch.signalwire.com login libresbc password {{ signalwire_pat_token }}'
+  when: ansible_os_family == "Debian"
+
+- name: Create YUM Auth username for FreeSWITCH
+  copy:
+    dest: /etc/yum/vars/signalwireusername
+    owner: root
+    group: root
+    mode: '0644'
+    content: 'florian.seidner@world-direct.at'
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
+
+- name: Create YUM Auth pwd for FreeSWITCH
+  copy:
+    dest: /etc/yum/vars/signalwiretoken
+    owner: root
+    group: root
+    mode: '0644'
+    content: '{{ signalwire_pat_token }}'
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
+
+- name: Install FreeSWITCH repo
+  command: yum install -y https://fse-wd:{{ signalwire_pat_token }}@freeswitch.signalwire.com/repo/yum/centos-release/freeswitch-release-repo-0-1.noarch.rpm epel-release
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
 
 - name: Add FreeSWITCH repo link
   lineinfile:
@@ -22,33 +46,87 @@
   with_items:
     - deb [signed-by=/usr/share/keyrings/signalwire-freeswitch-repo.gpg] https://freeswitch.signalwire.com/repo/deb/debian-release/ {{debian_codename|default('buster')}} main
     - deb-src [signed-by=/usr/share/keyrings/signalwire-freeswitch-repo.gpg] https://freeswitch.signalwire.com/repo/deb/debian-release/ {{debian_codename|default('buster')}} main
+  when: ansible_os_family == "Debian"
 
 - name: Run the equivalent of "apt-get update" as a separate step
   apt:
     update_cache: yes
   ignore_errors: yes
+  when: ansible_os_family == "Debian"
 
-- name: Install the build dependencies for package freeswitch
+- name: Run the equivalent of "dnf update" as a separate step
+  dnf:
+    update_cache: yes
+  ignore_errors: yes
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
+
+
+- name: Install the build dependencies for package freeswitch debian
   apt:
     pkg: freeswitch
     state: build-dep
+  when: ansible_os_family == "Debian"
+
+- name: Install the build dependencies for package freeswitch Rocky
+  dnf:
+    pkg: spandsp3-devel
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
+
+- name: Download libks source code 
+  get_url:
+    url: https://github.com/signalwire/libks/archive/refs/tags/v2.0.3.tar.gz
+    dest: /usr/local/src/libks-2.0.3.tar.gz
+    # checksum: md5:371b3001bf0871bbf8666e1f1c2d5e1f
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
+
+- name: Download sofia-sip source code 
+  get_url:
+    url: https://github.com/freeswitch/sofia-sip/archive/refs/tags/v1.13.17.tar.gz
+    dest: /usr/local/src/sofia-sip-1.13.17.tar.gz
+    # checksum: md5:371b3001bf0871bbf8666e1f1c2d5e1f
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
+
+- name: Download signalwire-c source code 
+  get_url:
+    url: https://github.com/signalwire/signalwire-c/archive/refs/tags/v2.0.0.tar.gz
+    dest: /usr/local/src/signalwire-c-2.0.0.tar.gz
+    # checksum: md5:371b3001bf0871bbf8666e1f1c2d5e1f
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
 
 - name: Download freeswith source code and checksum
   get_url:
-    url: https://github.com/signalwire/freeswitch/archive/refs/tags/v1.10.6.tar.gz
-    dest: /usr/local/src/freeswitch-1.10.6.tar.gz
-    checksum: md5:371b3001bf0871bbf8666e1f1c2d5e1f
+    url: https://github.com/signalwire/freeswitch/archive/refs/tags/v1.10.11.tar.gz
+    dest: /usr/local/src/freeswitch-1.10.11.tar.gz
+    # checksum: md5:371b3001bf0871bbf8666e1f1c2d5e1f
 
 - name: Unarchive tar the freeswitch release
   unarchive:
-    src: /usr/local/src/freeswitch-1.10.6.tar.gz
+    src: /usr/local/src/libks-2.0.3.tar.gz
+    dest: /usr/local/src
+    remote_src: yes
+
+- name: Unarchive tar the freeswitch release
+  unarchive:
+    src: /usr/local/src/sofia-sip-1.13.17.tar.gz
+    dest: /usr/local/src
+    remote_src: yes
+
+- name: Unarchive tar the freeswitch release
+  unarchive:
+    src: /usr/local/src/signalwire-c-2.0.0.tar.gz
+    dest: /usr/local/src
+    remote_src: yes
+
+- name: Unarchive tar the freeswitch release
+  unarchive:
+    src: /usr/local/src/freeswitch-1.10.11.tar.gz
     dest: /usr/local/src
     remote_src: yes
 
 - name: copy freeswitch module file
   copy:
     src: modules.conf
-    dest: /usr/local/src/freeswitch-1.10.6/modules.conf
+    dest: /usr/local/src/freeswitch-1.10.11/modules.conf
     owner: root
     group: root
     mode: 0644
@@ -63,6 +141,16 @@
       - libopencore-amrnb-dev
       - libopencore-amrnb0
     state: latest
+  when: ansible_os_family == "Debian"
+
+- name: Install Extra FreeSWITCH packages for AMR
+  dnf:
+    pkg:
+      - opencore-amr-devel
+      - vo-amrwbenc-devel
+    state: latest
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
+
 
 - name: Install Extra FreeSWITCH packages for AMR (debug only)
   apt:
@@ -72,6 +160,7 @@
       - libopencore-amrnb0-dbg
     state: latest
   ignore_errors: true
+  when: ansible_os_family == "Debian"
 
 - name: copy AMR LIB to source
   copy:
@@ -80,19 +169,40 @@
     remote_src: yes
   with_items:
     - src: /usr/include/opencore-amrwb/dec_if.h
-      dst: /usr/local/src/freeswitch-1.10.6/src/mod/codecs/mod_amrwb/dec_if.h
+      dst: /usr/local/src/freeswitch-1.10.11/src/mod/codecs/mod_amrwb/dec_if.h
     - src: /usr/include/vo-amrwbenc/enc_if.h
-      dst: /usr/local/src/freeswitch-1.10.6/src/mod/codecs/mod_amrwb/enc_if.h
+      dst: /usr/local/src/freeswitch-1.10.11/src/mod/codecs/mod_amrwb/enc_if.h
     - src: /usr/include/opencore-amrnb/interf_enc.h
-      dst: /usr/local/src/freeswitch-1.10.6/src/mod/codecs/mod_amr/interf_enc.h
+      dst: /usr/local/src/freeswitch-1.10.11/src/mod/codecs/mod_amr/interf_enc.h
     - src: /usr/include/opencore-amrnb/interf_dec.h
-      dst: /usr/local/src/freeswitch-1.10.6/src/mod/codecs/mod_amr/interf_dec.h
+      dst: /usr/local/src/freeswitch-1.10.11/src/mod/codecs/mod_amr/interf_dec.h
+
+- name: build libks
+  shell: cmake . -DCMAKE_INSTALL_PREFIX=/usr -DWITH_LIBBACKTRACE=0 && make install
+  args:
+    executable: /bin/bash
+    chdir: /usr/local/src/libks-2.0.3
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
+
+- name: build sofia-sip
+  shell: ./bootstrap.sh && ./configure CFLAGS="-g -ggdb" --with-pic --with-glib=no --without-doxygen --disable-stun --prefix=/usr && make -j`nproc --all` && make install
+  args:
+    executable: /bin/bash
+    chdir: /usr/local/src/sofia-sip-1.13.17
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
+
+- name: build libks
+  shell: PKG_CONFIG_PATH=/usr/lib/pkgconfig cmake . -DCMAKE_INSTALL_PREFIX=/usr && make install
+  args:
+    executable: /bin/bash
+    chdir: /usr/local/src/signalwire-c-2.0.0
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
 
 - name: build freeswitch
   shell: ./bootstrap.sh -j && ./configure -C --prefix=/usr/local --with-rundir=/run/freeswitch --with-logfiledir=/var/log/freeswitch/ --enable-64 --with-openssl && make && make install
   args:
     executable: /bin/bash
-    chdir: /usr/local/src/freeswitch-1.10.6
+    chdir: /usr/local/src/freeswitch-1.10.11
 
 - name: Delete default configuration folder
   file:
@@ -121,18 +231,21 @@
     url: https://github.com/Kitware/CMake/releases/download/v3.20.0/cmake-3.20.0.tar.gz
     dest: /usr/local/src/cmake-3.20.0.tar.gz
     checksum: md5:9079201b76ca8d5b8b5337443369ae59
+  when: ansible_os_family == "Debian"
 
 - name: Unarchive tar the cmake
   unarchive:
     src: /usr/local/src/cmake-3.20.0.tar.gz
     dest: /usr/local/src
     remote_src: yes
+  when: ansible_os_family == "Debian"
 
 - name: build cmake
   shell: ./bootstrap && make && make install
   args:
     executable: /bin/bash
     chdir: /usr/local/src/cmake-3.20.0
+  when: ansible_os_family == "Debian"
 
 - name: Symbolic CLI tool
   file:
@@ -140,6 +253,7 @@
     dest: /usr/bin/cmake
     state: link
     force: true
+  when: ansible_os_family == "Debian"
 
 - name: Git clone bcg729
   git:

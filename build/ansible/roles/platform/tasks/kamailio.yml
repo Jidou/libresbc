@@ -3,6 +3,7 @@
   apt:
     update_cache: yes
   ignore_errors: yes
+  when: ansible_os_family == "Debian"
 
 - name: Install Extra Kamailio packages
   apt:
@@ -14,6 +15,7 @@
       - libxml2-dev
       - libpcre3-dev
     state: latest
+  when: ansible_os_family == "Debian"
 
 - name: Download kamailio source code and checksum
   get_url:
