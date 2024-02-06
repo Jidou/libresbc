@@ -1,7 +1,8 @@
-# - name: Disable SELinux
-#   selinux:
-#     state: disabled
-#   ignore_errors: true
+- name: Set httpd_can_network_connect flag on and keep it persistent across reboots
+  seboolean:
+    name: httpd_can_network_connect
+    state: true
+    persistent: true
 
 - name: Update dnf-cache
   dnf:
@@ -12,27 +13,10 @@
     name: "*"
     state: latest
 
-# - name: Upgrade the OS (apt-get dist-upgrade)
-#   dnf:
-#     upgrade: dist
-
 # set timezone
 - name: Set timezone to {{timezone|default(UTC)}}
   timezone:
     name: "{{timezone|default(UTC)}}"
-
-# # change hostname
-# - name: Change hostname {{ansible_hostname}} to {{nodeid|lower}}
-#   hostname:
-#     name: "{{nodeid | lower}}"
-
-# # https://github.com/ansible/ansible/issues/19176
-# - name: set hostname - workaround
-#   replace:
-#     path: /etc/hosts
-#     regexp: ^127.0.1.1(.*){{ansible_hostname}}(.*)$
-#     replace: 127.0.1.1\1{{nodeid|lower}}\2
-#     backup: yes
 
 - name: Remove unused packages
   dnf:
