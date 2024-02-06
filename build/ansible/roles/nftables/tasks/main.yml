@@ -6,5 +6,14 @@
     owner: root
     group: root
     mode: u+rx,g+x,o-w
+  when: ansible_os_family == "Debian"
 
+- name: Update templating firewall rule for nftables
+  template:
+    src: preset.libre.nft
+    dest: /etc/nftables/preset.libre.nft
+    owner: root
+    group: root
+    mode: u+rx,g+x,o-w
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
 
