@@ -3,6 +3,13 @@
   apt:
     update_cache: yes
   ignore_errors: yes
+  when: ansible_os_family == "Debian"
+
+- name: Run the equivalent of "dnf update" as a separate step
+  dnf:
+    update_cache: yes
+  ignore_errors: yes
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
 
 - name: Download CaptAgent source code and checksum
   get_url:
@@ -16,7 +23,7 @@
     dest: /usr/local/src
     remote_src: yes
 
-- name: Install Extra CaptAgent packages for AMR
+- name: Install Extra CaptAgent packages for AMR, Debian
   apt:
     pkg:
       - libexpat-dev
@@ -28,6 +35,18 @@
       - libpcre3-dev
       - libfl-dev
     state: latest
+  when: ansible_os_family == "Debian"
+
+- name: Install Extra CaptAgent packages for AMR, Rocky
+  dnf:
+    pkg:
+      - libpcap-devel
+      - json-c-devel
+      - libuv-devel
+      - libfl-devel
+    enablerepo: devel
+    state: latest
+  when: ansible_os_family == "Rocky" and ansible_distribution_major_version == "9"
 
 - name: build CaptAgent
   shell: ./build.sh && ./configure --enable-compression --enable-ipv6 --enable-pcre --enable-ssl --enable-tls && make && make install
